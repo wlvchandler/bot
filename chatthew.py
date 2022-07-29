@@ -6,7 +6,7 @@ import datetime
 import uuid
 
 import mariadb
-conn = mariadb.connect(user="root", password="1q2w3eazsxdc", host="127.0.0.1", port=3306, database="chatthew_test")
+conn = mariadb.connect(user="root", password="1q2w3eazsxdc", host="127.0.0.1", port=3306, database="chatthew_test", autocommit=True)
 dbcur = conn.cursor()
 
 import flask
@@ -15,14 +15,6 @@ from flask_sock import Sock
 app = Flask(__name__)
 app.config['SOCK_SERVER_OPTIONS'] = {'ping_interval': 25}
 sock = Sock(app)
-
-# @sock.route('/echo')
-# def echo(ws):
-#     while True:
-#         data = ws.receive()
-#         if data == 'close':
-#             break
-#         ws.send(data)
 
 def GetTimestamp(fmt='%Y-%m-%d %H:%M:%S'):
     return datetime.datetime.fromtimestamp(time.time()).strftime(fmt)    
@@ -51,10 +43,6 @@ def handle_channel_update(event):
     user = 'jaahska' 
     query=f"insert into alerts (alert_type, timestamp, user) values ('channel_update','{timestamp}','{user}')"
     dbcur.execute(query)
-    with open('/home/will/chatthew/channel_update', 'a') as f:
-        f.write(f'category now {event["category_name"]}\n')
-    conn.commit()
-
 
 point_redeems = {
     uuid.UUID('278846c3-d03b-4a2d-8956-1eae210b4326'): "Sound Alert: mr magoo",
@@ -102,33 +90,59 @@ def handle_channel_point_redeem(event):
     if query != '':
         print(f"executing '{query}'")
         dbcur.execute(query)
-        conn.commit()
 
 def handle_sub(event):
-    pass
+    eUserId     = event["user_id"]
+    eUserLogin  = event["user_login"]
+    eUserName   = event["user_name"]
+    eBUserId    = event["broadcaster_user_id"]
+    eBUserLogin = event["broadcaster_user_login"]
+    eBUserName  = event["broadcaster_user_name"]
+    eTier       = event["tier"]
+    eGift       = event["is_gift"]
 
 def handle_gifted_sub(event):
-    pass
-
+    eUserId     = event["user_id"]
+    eUserLogin  = event["user_login"]
+    eUserName   = event["user_name"]
+    eBUserId    = event["broadcaster_user_id"]
+    eBUserLogin = event["broadcaster_user_login"]
+    eBUserName  = event["broadcaster_user_name"]
+    eTier       = event["tier"]
+    eTotal      = event["total"]
+    eCumulative = event["cumulative_total"]
+    eAnon       = event["is_anonymous"]
+    
 def handle_sub_message(event):
-    pass
+    eUserId     = event["user_id"]
+    eUserLogin  = event["user_login"]
+    eUserName   = event["user_name"]
+    eBUserId    = event["broadcaster_user_id"]
+    eBUserLogin = event["broadcaster_user_login"]
+    eBUserName  = event["broadcaster_user_name"]
+    eTier       = event["tier"]
+    eCumulative = event["cumulative_months"]
+    eStreak     = event["streak_months"]
+    eDuration   = event["duration_months"]
+    eMessage    = event["message"]
+    eMsgText    = eMessage["text"]
+    eEmotes     = eMessage["emotes"] # [{begin, end, id},..]
 
 def handle_cheer(event):
     eAnon       = event["is_anonymous"]
-    eUserId     = None if eAnon else event["user_id"]
-    eUserLogin  = None if eAnon else event["user_login"]
-    eUserName   = None if eAnon else event["user_name"]
+    eUserId     = 0 if eAnon else event["user_id"]
+    eUserLogin  = 'Anonymous' if eAnon else event["user_login"]
+    eUserName   = 'Anonymous' if eAnon else event["user_name"]
     eBUserId    = event["broadcaster_user_id"]
     eBUserLogin = event["broadcaster_user_login"]
     eBUserName  = event["broadcaster_user_name"]
     eMessage    = event["message"]
     eBits       = event["bits"]
-    with open('/home/will/chatthew/cheers', 'a') as f:
-        name = event["user_name"]
-        if event["is_anonymous"] == True:
-            name = "anonymous"
-        f.write(f'{name} cheered {event["bits"]} bits: \'{event["message"]}\'\n')
 
+    event_id = 0 #TODO generate unique id -- or autoinc
+    query = f"insert into cheers (id, amount, user, channel) values ('{event_id}', '{eBits}', '{eUserName}', '{eBUserName}')"
+    dbcur.execute(query)
+    
 def handle_hype_train_begin(event):
     pass
 
@@ -162,7 +176,19 @@ def handle_raid(event):
     eViewers     = event["viewers"]
 
 def handle_ban(event):
-    pass
+    eUserId     = event["user_id"]
+    eUserLogin  = event["user_login"]
+    eUserName   = event["user_name"]
+    eBUserId    = event["broadcaster_user_id"]
+    eBUserLogin = event["broadcaster_user_login"]
+    eBUserName  = event["broadcaster_user_name"]
+    eModId      = event["moderator_user_id"]
+    eModLogin   = event["moderator_user_login"]
+    eModName    = event["moderator_user_name"]
+    eReason     = event["reason"]
+    eBannedAt   = event["banned_at"]
+    eEndsAt     = event["ends_at"]
+    ePermanent  = event["is_permanent"]
     
 event_handler = {
     "channel.follow": handle_channel_follow,
@@ -184,17 +210,17 @@ event_handler = {
 def handle_notification(rjson):
     event_handler[rjson["subscription"]["type"]](rjson["event"])
 
-def debug_out(request):
-    with open('/home/will/chatthew/callback-out', 'a') as f:
-        f.write("received callback\n")
-        f.write("DATA:\n===================\n")
-        f.write(json.dumps(request.json))
-        f.write("\nHEADERS:\n===================\n")
-        f.write(f'{request.headers}\n')
-        f.write("===================\n")
-
 @app.route("/webhooks/twitch-callback", methods=['POST','GET'])
 def twitchCallback():
+    def debug_out(request):
+        with open('/home/will/chatthew/callback-out', 'a') as f:
+            f.write("received callback\n")
+            f.write("DATA:\n===================\n")
+            f.write(json.dumps(request.json))
+            f.write("\nHEADERS:\n===================\n")
+            f.write(f'{request.headers}\n')
+            f.write("===================\n")
+
     # debug_out(request)
     ret = 'Bad', 403
     secret = "blahblahblahblah"
@@ -210,32 +236,39 @@ def twitchCallback():
     return ret
 
 
+# @app.after_request
+# def add_header(r):
+#     r.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, proxy-revalidate, max-age=0"
+#     r.headers["Pragma"] = "no-cache"
+#     r.headers["Expires"] = "0"
+#     return r
+
+
+def sort_blurse(blurse):
+    D = {}
+    dbcur.execute(f'select * from blurse where type ="{blurse}"')
+    for r in dbcur:
+        if r[1] not in D.keys():
+            D[r[1]] = 1
+        else:
+            D[r[1]] += 1
+    #_D ='\n'.join([f'{y[1]} - {y[0]}' for y in sorted(D.items(), key=lambda x: x[1], reverse=True)])
+    return [f'{y[1]} - {y[0]}' for y in sorted(D.items(), key=lambda x: x[1], reverse=True)]
+    #return f'<html><head><meta http-equiv="refresh" content="3"><style>body {{ color: white;}}</style></head><body>{_D}</body></html>'
+    
+    
 @app.route("/blessed")
 def blessed():
-    blessings = {}
-    dbcur.execute('select * from blurse where type ="bless"')
-    for r in dbcur:
-        if r[1] not in blessings.keys():
-            blessings[r[1]] = 1
-        else:
-            blessings[r[1]] += 1
-    return '\n'.join([f'{y[1]} - {y[0]}' for y in sorted(blessings.items(), key=lambda x: x[1], reverse=True)])
+    return flask.render_template('blurses.html', blursers="Blessers", blurses=sort_blurse('bless'))
 
 @app.route("/cursed")
 def cursed():
-    curses = {}
-    dbcur.execute('select * from blurse where type ="curse"')
-    for r in dbcur:
-        if r[1] not in curses.keys():
-            curses[r[1]] = 1
-        else:
-            curses[r[1]] += 1
-    return '\n'.join([f'{y[1]} - {y[0]}' for y in sorted(curses.items(), key=lambda x: x[1], reverse=True)])
+    return flask.render_template('blurses.html', blursers="Cursers", blurses=sort_blurse('curse'))
+    #return flask.render_template('cursed.html', curses=sort_blurse('curse'))
 
-
-@app.route("/results")
-def hi():
-    return flask.render_template("test.html")
+@app.route("/canvas")
+def canvas():
+    return flask.render_template("canvas.html")
 
 @app.route("/resultlist")
 def resultlist():
@@ -246,13 +279,8 @@ def resultlist():
         for r in dbcur:
             suggestions_list.append(r[0])
 
-    return flask.render_template('suggestions', suggestions=suggestions_list)
+    return flask.render_template('resultlist.html', suggestions=suggestions_list)
 
-@app.route("/test")
-def testshit():
-    id = flask.request.args.get('button_id')
-    return f'<p>{id}</p>'
-    #return '<h1 style="color:white">hi hi hi hi hi hi hi hi hi hi hi hi hi</h1>', 200
 
 @app.route("/", methods=['GET','POST'])
 def hello():

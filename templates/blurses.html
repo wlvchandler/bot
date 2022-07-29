@@ -1,0 +1,34 @@
+<html>
+
+  <head>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Acme">
+    <meta http-equiv="refresh" content="3">
+    <style>
+      body
+      {
+	  color: white;
+	  font-size: 2em;
+	  font-family: "Acme";
+      }
+      h3 {
+	  margin: 4px;
+      }
+      ul {
+	  padding-left: 0px;
+	  column-gap: 0px;
+	  columns: 2;
+	  -webkit-columns: 2;
+	  -moz-columns: 2;
+      }
+    </style>
+  </head>
+  
+  <body>
+    <h3>Run {{ blursers }}:</h3>
+    <ul id="blurse_list" style="list-style: none;">
+      {% for b in blurses %}
+      <li>{{ b }}</li>
+      {% endfor %}
+    </ul>
+  </body>
+</html>

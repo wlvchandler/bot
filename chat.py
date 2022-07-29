@@ -45,19 +45,20 @@ class TwitchBot(irc.bot.SingleServerIRCBot):
 
         # Poll the API to get current game.
         if cmd == "game":
-            url = 'https://api.twitch.tv/helix/channels/' + self.channel_id
+            url = 'https://api.twitch.tv/helix/channels?broadcaster_id=' + self.channel_id
             headers = {'Client-ID': self.client_id, 'Accept': 'application/vnd.twitchtv.v5+json', 'Authorization':'Bearer '+self.token}
             print(headers)
-            r = requests.get(url, headers=headers).json()
+            r = requests.get(url, headers=headers).json()['data'][0]
             print(r)
-            c.privmsg(self.channel, r['display_name'] + ' is currently playing ' + r['game'])
+            c.privmsg(self.channel, r['broadcaster_name'] + ' is currently playing ' + r['game_name'])
 
         # Poll the API the get the current status of the stream
         elif cmd == "title":
-            url = 'https://api.twitch.tv/helix/channels/' + self.channel_id
+            url = 'https://api.twitch.tv/helix/channels?broadcaster_id=' + self.channel_id
             headers = {'Client-ID': self.client_id, 'Accept': 'application/vnd.twitchtv.v5+json', 'Authorization':'Bearer '+self.token}
-            r = requests.get(url, headers=headers).json()
-            c.privmsg(self.channel, r['display_name'] + ' channel title is currently ' + r['status'])
+            r = requests.get(url, headers=headers).json()['data'][0]
+            print(r)
+            c.privmsg(self.channel, r['broadcaster_name'] + ' channel title is currently ' + r['title'])
 
         # Provide basic information to viewers for specific commands
         elif cmd == "raffle":
