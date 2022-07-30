@@ -5,10 +5,21 @@ import time
 import datetime
 import uuid
 
+import os
+from dotenv import load_dotenv
+load_dotenv()
+
+## LOGGING SETUP
+import logging
+logging.basicConfig(format='%(asctime)s %(message)s', filename='log/chatthew.log', encoding='utf-8', level=logging.DEBUG)
+
+## DB SETUP
 import mariadb
-conn = mariadb.connect(user="root", password="1q2w3eazsxdc", host="127.0.0.1", port=3306, database="chatthew_test", autocommit=True)
+ENV=os.environ
+conn = mariadb.connect(user=ENV["DBUSER"], password=ENV["DBPW"], host="127.0.0.1", port=3306, database=ENV["DB"], autocommit=True)
 dbcur = conn.cursor()
 
+## FLASK SETUP
 import flask
 from flask import Flask, request, Response
 from flask_sock import Sock
@@ -16,8 +27,18 @@ app = Flask(__name__)
 app.config['SOCK_SERVER_OPTIONS'] = {'ping_interval': 25}
 sock = Sock(app)
 
+
+################################################################
+
 def GetTimestamp(fmt='%Y-%m-%d %H:%M:%S'):
     return datetime.datetime.fromtimestamp(time.time()).strftime(fmt)    
+
+
+
+
+###################
+##### EVENTSUB HANDLERS
+###################
 
 def handle_channel_follow(event):
     eUserId     = event["user_id"]
@@ -153,13 +174,16 @@ def handle_hype_train_end(event):
     pass
 
 def handle_stream_online(event):
-    session_id = uuid.uuid1()
+    #session_id = uuid.uuid1()
     eId = event["id"]
     eBUserId = event["broadcaster_user_id"]
     eBUserLogin = event["broadcaster_user_login"]
     eBUserName = event["broadcaster_user_name"]
     eType = event["type"] # live, playlist, watch_party, premiere, rerun
     eTime = event["started_at"]
+    eTimeConv = datetime.datetime.strptime(eTime, "%Y-%m-%dT%H:%M:%S.%fZ").strftime("%Y-%m-%d %H:%M:%S.%f")
+    query = f"insert into stream (start_time, end_time, messages) values ({eTimeConv}, NULL, 0)"
+    dbcur.execute(query)
     
 def handle_stream_offline(event):
     eUserId = event["broadcaster_user_id"]
@@ -207,9 +231,16 @@ event_handler = {
     "stream.offline": handle_stream_offline
 }
     
+
+##################
+#### EXTERNAL EVENT HANDLER
+##################
+
 def handle_notification(rjson):
+    logging.info(f'chatthew_event {rjson["subscription"]["type"]}')
     event_handler[rjson["subscription"]["type"]](rjson["event"])
 
+    
 @app.route("/webhooks/twitch-callback", methods=['POST','GET'])
 def twitchCallback():
     def debug_out(request):
@@ -236,13 +267,10 @@ def twitchCallback():
     return ret
 
 
-# @app.after_request
-# def add_header(r):
-#     r.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, proxy-revalidate, max-age=0"
-#     r.headers["Pragma"] = "no-cache"
-#     r.headers["Expires"] = "0"
-#     return r
 
+##############
+#### STATIC PAGES
+##############
 
 def sort_blurse(blurse):
     D = {}
@@ -252,10 +280,8 @@ def sort_blurse(blurse):
             D[r[1]] = 1
         else:
             D[r[1]] += 1
-    #_D ='\n'.join([f'{y[1]} - {y[0]}' for y in sorted(D.items(), key=lambda x: x[1], reverse=True)])
     return [f'{y[1]} - {y[0]}' for y in sorted(D.items(), key=lambda x: x[1], reverse=True)]
-    #return f'<html><head><meta http-equiv="refresh" content="3"><style>body {{ color: white;}}</style></head><body>{_D}</body></html>'
-    
+   
     
 @app.route("/blessed")
 def blessed():
@@ -266,26 +292,10 @@ def cursed():
     return flask.render_template('blurses.html', blursers="Cursers", blurses=sort_blurse('curse'))
     #return flask.render_template('cursed.html', curses=sort_blurse('curse'))
 
-@app.route("/canvas")
+@app.route("/canvas" ''', methods=['GET', 'POST']''')
 def canvas():
     return flask.render_template("canvas.html")
 
-@app.route("/resultlist")
-def resultlist():
-    text = request.args.get('jsdata')
-    suggestions_list = []
-    if text:
-        dbcur.execute('select * from alerts')
-        for r in dbcur:
-            suggestions_list.append(r[0])
-
-    return flask.render_template('resultlist.html', suggestions=suggestions_list)
-
-
-@app.route("/", methods=['GET','POST'])
-def hello():
-    return flask.render_template('blurse.html')
-    #return "<h1 style='color:blue'>Hello world >:)</h1>"
 
 
 if __name__ == "__main__":
