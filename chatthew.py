@@ -16,7 +16,8 @@ logging.basicConfig(format='%(asctime)s %(message)s', filename='log/chatthew.log
 ## DB SETUP
 import mariadb
 ENV=os.environ
-conn = mariadb.connect(user=ENV["DBUSER"], password=ENV["DBPW"], host="127.0.0.1", port=3306, database=ENV["DB"], autocommit=True)
+conn =  mariadb.connect(user="root", password="1q2w3eazsxdc", host="127.0.0.1", port=3306, database="chatthew_test", autocommit=True)
+#conn = mariadb.connect(user=ENV["DBUSER"], password=ENV["DBPW"], host="127.0.0.1", port=3306, database=ENV["DB"], autocommit=True)
 dbcur = conn.cursor()
 
 ## FLASK SETUP
@@ -34,6 +35,10 @@ def GetTimestamp(fmt='%Y-%m-%d %H:%M:%S'):
     return datetime.datetime.fromtimestamp(time.time()).strftime(fmt)    
 
 
+def recordAlert(event, user):
+    timestamp = GetTimestamp()
+    query=f"insert into alerts (alert_type, timestamp, user) values ('{event}','{timestamp}','{user}')"
+    dbcur.execute(query)
 
 
 ###################
@@ -97,16 +102,15 @@ def handle_channel_point_redeem(event):
     eRwdCost    = event["reward"]["cost"]
     eRwdPrompt  = event["reward"]["prompt"]
 
-    #TODO: insert redeem into tables for future
+    recordAlert("channel_point_redeem", eUserName)
     
-    with open('/home/will/chatthew/point_redeem', 'a') as f:
-        #f.write(f'{eUserName} redeemed {eRwdTitle} ({eRwdId}{type(eRwdId)}): "{eUserInput}"\n')
-        f.write(f'uuid.UUID(\'{eRwdId}\'): "{eRwdTitle}"\n')
-        
     query = ''
     if eRwdTitle.split()[0].lower() in ['curse', 'bless']:
         t = eRwdTitle.split()[0]
         query = f"insert into blurse (type, user) values ('{t}', '{eUserName}')"
+
+    with open('/home/will/chatthew/alerts', 'w') as f:
+        f.write(f"QUERY: {query}\n")
         
     if query != '':
         print(f"executing '{query}'")
@@ -237,12 +241,22 @@ event_handler = {
 ##################
 
 def handle_notification(rjson):
-    logging.info(f'chatthew_event {rjson["subscription"]["type"]}')
-    event_handler[rjson["subscription"]["type"]](rjson["event"])
+    try:
+        # with open('/home/will/chatthew/callback-out', 'a') as f:
+        #     f.write(f"{rjson}\n")
+        logging.info(f'chatthew_event {rjson["subscription"]["type"]}')
+        event_handler[rjson["subscription"]["type"]](rjson["event"])
+    except Exception as e:
+        logging.info(f'no handler function for {rjson["subscription"]["type"]}')
+        logging.info(f'Event JSON: {rjson["event"]}')
 
     
 @app.route("/webhooks/twitch-callback", methods=['POST','GET'])
 def twitchCallback():
+    logging.info(f'twitch callback found')
+    with open('/home/will/chatthew/callback-out', 'a') as f:
+        f.write("RECEIVED\n")
+        
     def debug_out(request):
         with open('/home/will/chatthew/callback-out', 'a') as f:
             f.write("received callback\n")
@@ -252,7 +266,7 @@ def twitchCallback():
             f.write(f'{request.headers}\n')
             f.write("===================\n")
 
-    # debug_out(request)
+    debug_out(request)
     ret = 'Bad', 403
     secret = "blahblahblahblah"
     message = f'{request.headers["Twitch-Eventsub-Message-Id"]}{request.headers["Twitch-Eventsub-Message-Timestamp"]}{request.data.decode("utf-8")}'
@@ -264,6 +278,7 @@ def twitchCallback():
             ret = f'{request.json["challenge"]}'
     if request.headers["Twitch-Eventsub-Message-Type"] == "notification":
         handle_notification(request.json)
+    logging.info(f'returning {ret}')
     return ret
 
 
@@ -292,9 +307,13 @@ def cursed():
     return flask.render_template('blurses.html', blursers="Cursers", blurses=sort_blurse('curse'))
     #return flask.render_template('cursed.html', curses=sort_blurse('curse'))
 
-@app.route("/canvas" ''', methods=['GET', 'POST']''')
+@app.route("/canvas") #methods=['GET', 'POST']
 def canvas():
     return flask.render_template("canvas.html")
+
+@app.route("/wstest") #methods=['GET', 'POST']
+def wstest():
+    return flask.render_template("ws.html")
 
 
 

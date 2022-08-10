@@ -1,0 +1,52 @@
+<!-- <!DOCTYPE html> -->
+ 
+<!-- <html lang="en"> -->
+<!-- <head> -->
+<!--     <meta charset="UTF-8"> -->
+<!--     <meta http-equiv="X-UA-Compatible" content="IE=edge"> -->
+<!--     <meta name="viewport" content="width=device-width, initial-scale=1.0"> -->
+<!--     <title>WebSocker Client</title> -->
+<!-- </head> -->
+<!-- <body> -->
+<!--     <button onclick="contactServer">Click Here</button> -->
+<!-- </body> -->
+<!-- <script> -->
+<!--   const socket = new WebSocket('wss://localhost:80/ws'); -->
+<!--   console.log(socket); -->
+<!--   socket.addEventListener('open', function (event) { -->
+<!--       socket.send('Connection Established'); -->
+<!--   }); -->
+  
+<!--   socket.addEventListener('message', function (event) { -->
+<!--       console.log(event.data); -->
+<!--   }); -->
+<!--   socket.addEventListener('error', function (err) { -->
+<!--       console.log(err); -->
+<!--   }); -->
+  
+<!--   const contactServer = () => { -->
+<!--       socket.send("Initialize"); -->
+<!--   } -->
+<!-- </script> -->
+<!-- </html> -->
+
+
+<!DOCTYPE html>
+<html>
+  <head><title>Hello world</title></head>
+  <script src="https://cdn.socket.io/4.5.0/socket.io.min.js" integrity="sha384-7EyYLQZgWBi67fBtVxw60/OWl1kjsfrPFcaU0pp0nAh+i8FD068QogUvg85Ewy1k" crossorigin="anonymous"></script>
+   <!-- <script src="http://jaskaa.com:8765/socket.io/socket.io.js"></script> -->
+   <script>
+     var socket = io.connect('https://localhost:8765');
+     // client-side
+     socket.on("connect", () => {
+	 console.log(socket.id); // x8WIv7-mJelg7on_ALbx
+	 socket.emit("blah");
+     });
+
+     socket.on("disconnect", () => {
+	 console.log(socket.id); // undefined
+     });
+   </script>
+   <body>Hello world</body>
+</html>
